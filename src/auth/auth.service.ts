@@ -5,45 +5,56 @@ import * as schema from 'schema/schema';
 import { eq } from 'drizzle-orm';
 import * as bcrypt from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
+import { SignInDto, SignUpDto } from './dtos/auth.dto';
 
-interface SignUp {
-  email: string;
-  password: string;
-  username: string;
-}
-
-interface SignIn {
-  email: string;
-  password: string;
-}
 @Injectable()
 export class AuthService {
   constructor(
     @Inject(PG_CONNECTION) private db: NodePgDatabase<typeof schema>,
   ) {}
 
-  async signup({ email, password, username }: SignUp) {
+  async signup({ user, konter }: SignUpDto) {
     const userExists = await this.db
       .select()
       .from(schema.users)
-      .where(eq(schema.users.email, email));
+      .where(eq(schema.users.email, user.email));
 
     if (userExists.length > 0) {
       return 'user exists';
     } else {
-      const hashedPassword = await bcrypt.hash(password, 10);
-      const user = await this.db
-        .insert(schema.users)
-        .values({ email, password: hashedPassword, username });
-      return { user, token: this.generateToken(email, user.oid.toString())};
+      const hashedPassword = await bcrypt.hash(user.password, 10);
+
+      const userCreated = await this.db.transaction(async (tx) => {
+        const userCreated = await tx
+          .insert(schema.users)
+          .values({
+            email: user.email,
+            name: user.name,
+            username: user.username,
+            whatsapp: user.whatsapp,
+            password: hashedPassword,
+          })
+          .returning();
+
+        await tx.insert(schema.konter).values({
+          name: konter.name,
+          province: konter.province,
+          userId: userCreated[0].id,
+        });
+
+        return userCreated[0];
+      });
+      return {
+        statusDescription: `Data ${userCreated.name} Berhasil dibuat`,
+      };
     }
   }
 
-  async signin({ email, password }: SignIn) {
+  async signin({ username, password }: SignInDto) {
     const userExists = await this.db
       .select()
       .from(schema.users)
-      .where(eq(schema.users.email, email));
+      .where(eq(schema.users.username, username));
 
     if (userExists.length > 0) {
       const isValidPassword = await bcrypt.compare(
@@ -54,15 +65,25 @@ export class AuthService {
       if (!isValidPassword)
         throw new HttpException('Invalid username or password', 400);
       else {
-        return {user: userExists[0], token: this.generateToken(email, userExists[0]?.id.toString())};
+        const user = { ...userExists[0] };
+
+        return {
+          user: {
+            id: user.id,
+            username: user.username,
+            name: user.name,
+            email: user.email,
+          },
+          token: this.generateToken(username, userExists[0]?.id.toString()),
+        };
       }
     } else {
       return 'user does not exist';
     }
   }
 
-  private generateToken(email: string, id: string) {
-    const token = jwt.sign({ email, id }, process.env.SECRET, {
+  private generateToken(username: string, id: string) {
+    const token = jwt.sign({ username, id }, process.env.SECRET!, {
       expiresIn: 10000000,
     });
     return token;

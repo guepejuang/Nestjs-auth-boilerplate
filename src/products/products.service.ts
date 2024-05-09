@@ -1,19 +1,21 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import PG_CONNECTION from 'utils/urls';
-import * as schema from 'schema/schema'
+import * as schema from 'schema/schema';
 
 @Injectable()
 export class ProductsService {
-  constructor(@Inject(PG_CONNECTION) private db: NodePgDatabase<typeof schema>){}
+  constructor(
+    @Inject(PG_CONNECTION) private db: NodePgDatabase<typeof schema>,
+  ) {}
 
   create() {
     return 'This action adds a new product';
   }
 
   async findAll() {
-    const products = this.db.select().from(schema.products)
-    return products
+    const products = this.db.select().from(schema.users);
+    return products;
   }
 
   findOne(id: number) {
