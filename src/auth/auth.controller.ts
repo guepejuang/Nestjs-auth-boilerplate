@@ -10,7 +10,6 @@ export class AuthController {
 
   @Post('/signup')
   signup(@Body() body: SignUpDto) {
-    console.log('body', { statusDescription: 'noToast' });
     // return { ...body, statusDescription: 'noToast' };
     return this.authService.signup(body);
   }

@@ -14,7 +14,11 @@ export class DigiflazzController {
 
   @Get()
   findDigiflazz(@Query() params: DigiflazzWhereDTO) {
-    console.log('<====', params);
     return this.digiflazzService.findBy(params);
+  }
+
+  @Post('/prabayar')
+  bayarPrabayar() {
+    return this.digiflazzService.bayarPrabayar();
   }
 }

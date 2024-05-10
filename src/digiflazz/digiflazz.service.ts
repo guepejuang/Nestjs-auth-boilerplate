@@ -13,13 +13,16 @@ export class DigiflazzService {
     @Inject(PG_CONNECTION) private db: NodePgDatabase<typeof schema>,
   ) {} //
 
-  async prabayar() {
-    // const md5 = argon2.
-
-    const md5 = crypto
+  generateMd5() {
+    return crypto
       .createHash('md5')
       .update(`zitewao6dk0Wdev-522ec7e0-1a14-11ed-9aaa-e77bb9592db9pricelist`)
       .digest('hex');
+  }
+  async prabayar() {
+    // const md5 = argon2.
+
+    const md5 = this.generateMd5();
     const response = await axios.post(
       'https://api.digiflazz.com/v1/price-list',
       {
@@ -96,5 +99,43 @@ export class DigiflazzService {
       .orderBy(schema.digiflazz.price);
 
     return data;
+  }
+
+  async bayarPrabayar() {
+    const md5 = this.generateMd5();
+    const requestSukses = {
+      username: 'zitewao6dk0W',
+      buyer_sku_code: 'xld5',
+      customer_no: '085770703576',
+      ref_id: 'test1',
+      sign: md5,
+    };
+
+    const requestGagal = {
+      username: 'username',
+      buyer_sku_code: 'xld10',
+      customer_no: '087800001232',
+      ref_id: 'test2',
+      sign: md5,
+    };
+
+    // generate random number 1 or 0
+
+    try {
+      const response = await axios
+        .post('https://api.digiflazz.com/v1/transaction', requestSukses)
+        .catch((err) => {
+          console.log('ERRORRRR=>', err.response);
+        });
+
+      console.log('response ==>', response);
+
+      return response;
+    } catch (error) {
+      console.error('error===>', error);
+      return {
+        data: 'SALAAAH',
+      };
+    }
   }
 }
