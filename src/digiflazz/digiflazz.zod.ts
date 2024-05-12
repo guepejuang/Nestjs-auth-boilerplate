@@ -25,3 +25,26 @@ export type PriceListDigiflazz = z.infer<typeof PriceListDigiflazzSchema>;
 export class DigiflazzWhereDTO extends createZodDto(
   selectDigiflazzSchema.partial(),
 ) {}
+
+export class DigiFlazzCreatePrabayar extends createZodDto(
+  z.object({
+    customerNo: z.string(),
+    buyerSkuCode: z.string(),
+    hargaJual: z.string(),
+    hargaKeuntungan: z.string(),
+  }),
+) {}
+
+export type PrabayarResponseDigiflazz = {
+  refId: String;
+  CustomerNo: String;
+  BuyerSkuCode: String;
+  Message: String;
+  Status: String;
+  Rc: String;
+  Sn: String;
+  BuyerLastSaldo: String;
+  Price: Number;
+  Tele: String;
+  Wa: String;
+};

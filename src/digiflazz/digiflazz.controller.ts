@@ -1,7 +1,7 @@
-import { Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { DigiflazzService } from './digiflazz.service';
 import { Public } from 'src/core/decorators/public.decorator';
-import { DigiflazzWhereDTO } from './digiflazz.zod';
+import { DigiFlazzCreatePrabayar, DigiflazzWhereDTO } from './digiflazz.zod';
 
 @Public()
 @Controller('digiflazz')
@@ -18,7 +18,7 @@ export class DigiflazzController {
   }
 
   @Post('/prabayar')
-  bayarPrabayar() {
-    return this.digiflazzService.bayarPrabayar();
+  bayarPrabayar(@Body() body: DigiFlazzCreatePrabayar) {
+    return this.digiflazzService.bayarPrabayar(body);
   }
 }

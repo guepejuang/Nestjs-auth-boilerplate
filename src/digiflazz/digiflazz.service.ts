@@ -1,28 +1,55 @@
-import { Inject, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import PG_CONNECTION from 'utils/urls';
 import * as schema from 'schema/schema';
 import axios from 'axios';
 import * as crypto from 'crypto';
-import { DigiflazzWhereDTO, PriceListDigiflazz } from './digiflazz.zod';
+import {
+  DigiFlazzCreatePrabayar,
+  DigiflazzWhereDTO,
+  PrabayarResponseDigiflazz,
+  PriceListDigiflazz,
+} from './digiflazz.zod';
 import { Digiflazz } from 'schema/schema';
 import { and, eq, or, param } from 'drizzle-orm';
+import { DigiflazzUrl } from './digiflazz.constant';
 @Injectable()
 export class DigiflazzService {
   constructor(
     @Inject(PG_CONNECTION) private db: NodePgDatabase<typeof schema>,
   ) {} //
 
-  generateMd5() {
+  generateMd5(key: string) {
     return crypto
       .createHash('md5')
-      .update(`zitewao6dk0Wdev-522ec7e0-1a14-11ed-9aaa-e77bb9592db9pricelist`)
+      .update(`zitewao6dk0Wdev-522ec7e0-1a14-11ed-9aaa-e77bb9592db9${key}`)
       .digest('hex');
+  }
+
+  async requestDigiflazz(body: any, url: string) {
+    try {
+      const response = await axios.post(url, body);
+
+      if (response.data?.data) {
+        const dataFromDigiflazz = response.data.data;
+        return dataFromDigiflazz;
+      }
+
+      throw new BadRequestException('Terjadi Kesalahan sistem(D)');
+    } catch (error) {
+      console.error('error===>', error.response);
+      throw new BadRequestException('Terjadi Kesalahan sistem(D)');
+    }
   }
   async prabayar() {
     // const md5 = argon2.
 
-    const md5 = this.generateMd5();
+    const md5 = this.generateMd5('pricelist');
     const response = await axios.post(
       'https://api.digiflazz.com/v1/price-list',
       {
@@ -65,7 +92,6 @@ export class DigiflazzService {
   }
 
   async findBy(params: DigiflazzWhereDTO) {
-    console.log('Loggg==>', params.brand);
     const data = await this.db
       .select()
       .from(schema.digiflazz)
@@ -101,41 +127,52 @@ export class DigiflazzService {
     return data;
   }
 
-  async bayarPrabayar() {
-    const md5 = this.generateMd5();
-    const requestSukses = {
+  async findBySkuCode(sku: string) {
+    const data = await this.db.query.digiflazz.findFirst({
+      where: eq(schema.digiflazz.buyerSkuCode, sku),
+    });
+    return data;
+  }
+
+  async bayarPrabayar(body: DigiFlazzCreatePrabayar) {
+    const uuid = crypto.randomUUID();
+    const md5 = this.generateMd5(uuid);
+
+    // const dataPpob = await this.findBySkuCode(body.buyerSkuCode)
+    // const marginKeuntungan = dataPpob
+    const requestDigiflazz = {
       username: 'zitewao6dk0W',
-      buyer_sku_code: 'xld5',
-      customer_no: '085770703576',
-      ref_id: 'test1',
+      buyer_sku_code: body.buyerSkuCode,
+      customer_no: body.customerNo,
+      ref_id: uuid,
       sign: md5,
+      testing: true,
     };
 
-    const requestGagal = {
-      username: 'username',
-      buyer_sku_code: 'xld10',
-      customer_no: '087800001232',
-      ref_id: 'test2',
-      sign: md5,
-    };
-
-    // generate random number 1 or 0
-
-    try {
-      const response = await axios
-        .post('https://api.digiflazz.com/v1/transaction', requestSukses)
-        .catch((err) => {
-          console.log('ERRORRRR=>', err.response);
-        });
-
-      console.log('response ==>', response);
-
-      return response;
-    } catch (error) {
-      console.error('error===>', error);
-      return {
-        data: 'SALAAAH',
-      };
+    const ppobData = await this.findBySkuCode(body.buyerSkuCode);
+    if (!ppobData?.id) {
+      throw new NotFoundException('');
     }
+
+    console.log('REQUEST', { requestDigiflazz });
+    const digiflazData = await this.requestDigiflazz(
+      requestDigiflazz,
+      DigiflazzUrl.TRANSACTION,
+    );
+
+    // const newTransaction = await this.db.insert(schema.transaksi).values({
+    //   //       refId: digiflazData.refId,
+    //   // customerNo: digiflazData.CustomerNo,
+    //   // price: digiflazData.Price,
+    //   // hargaJual: body.hargaJual,
+    //   // hargaKeuntungan: body.hargaKeuntungan,
+    //   // kuntungan: body.
+    //   // buyerSkuCode
+    //   // status
+    //   // rc
+    //   // tele
+    //   // wa
+    // });
+    return digiflazData;
   }
 }
