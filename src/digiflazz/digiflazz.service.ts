@@ -175,4 +175,26 @@ export class DigiflazzService {
     // });
     return digiflazData;
   }
+
+  async generateOrderId(): Promise<string> {
+    const timestamp = Date.now();
+    const randomSuffix = Math.floor(Math.random() * 10000)
+      .toString()
+      .padStart(4, '0'); // Suffix acak antara 0000 dan 9999
+    const orderId = `${timestamp}${randomSuffix}`;
+
+    // Pastikan order_id yang dihasilkan belum digunakan sebelumnya
+    // const existingOrder = await this.prisma.order.findUnique({
+    //   where: {
+    //     order_id: orderId,
+    //   },
+    // });
+
+    // if (existingOrder) {
+    //   // Jika order_id sudah ada, panggil fungsi generateOrderId() lagi
+    //   return this.generateOrderId();
+    // }
+
+    return orderId;
+  }
 }
