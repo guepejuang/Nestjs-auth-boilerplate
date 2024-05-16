@@ -6,7 +6,6 @@ import {
   timestamp,
   boolean,
   decimal,
-  uuid,
 } from 'drizzle-orm/pg-core';
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod';
 import { z } from 'zod';
@@ -64,20 +63,21 @@ export const insertDigiflazzSchema = createInsertSchema(digiflazz);
 export const selectDigiflazzSchema = createSelectSchema(digiflazz);
 export type SelectDigiflazz = z.infer<typeof selectDigiflazzSchema>;
 
-export const transaksi = pgTable('transaksi', {
-  refId: uuid('ref_id').defaultRandom().primaryKey(),
+export const transaksiPPOB = pgTable('transaksi_ppob', {
+  id: serial('id').primaryKey(),
+  refId: varchar('refId').notNull(),
   customerNo: varchar('customer_no').notNull(),
   price: decimal('price').notNull(),
   hargaJual: decimal('harga_jual').notNull(),
   hargaKeuntungan: decimal('harga_keuntungan').notNull(),
   kuntungan: decimal('kuntungan').notNull(),
   buyerSkuCode: varchar('buyer_sku_code').notNull(),
-  status: varchar('status').notNull(),
+  status: varchar('status', { enum: ['Sukses', 'Pending', 'Gagal'] }).notNull(),
   rc: varchar('rc').notNull(),
   tele: varchar('tele').notNull(),
   wa: varchar('wa').notNull(),
 });
 
-export type Transaksi = typeof transaksi.$inferSelect;
-export const insertTransaksiSchema = createInsertSchema(transaksi);
-export const selectTransaksiSchema = createSelectSchema(transaksi);
+export type TransaksiPPOB = typeof transaksiPPOB.$inferSelect;
+export const insertTransaksiPPOBSchema = createInsertSchema(transaksiPPOB);
+export const selectTransaksiPPOBSchema = createSelectSchema(transaksiPPOB);

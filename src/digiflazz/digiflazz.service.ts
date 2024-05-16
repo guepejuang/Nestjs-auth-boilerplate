@@ -135,24 +135,50 @@ export class DigiflazzService {
   }
 
   async bayarPrabayar(body: DigiFlazzCreatePrabayar) {
-    const uuid = crypto.randomUUID();
-    const md5 = this.generateMd5(uuid);
+    // 1. Cek apakah ada di DB atau tidak
+    let ppobData: Digiflazz | undefined = undefined;
+    if (
+      process.env.NODE_ENV !== 'production' &&
+      body.buyerSkuCode === 'xld10'
+    ) {
+      ppobData = {
+        id: 0,
+        productName: 'Xl 10.000',
+        category: 'Pulsa',
+        brand: 'XL',
+        type: 'Umum',
+        price: '9800',
+        buyerSkuCode: 'xld10',
+        buyerProductStatus: true,
+        sellerProductStatus: true,
+        desc: 'Pulsa Xl Rp 100.000',
+      };
+    } else {
+      ppobData = await this.findBySkuCode(body.buyerSkuCode);
+      if (!ppobData?.id) {
+        throw new NotFoundException('Data Item Tidak ditemukan');
+      }
+    }
 
+    // 2. Insert ke tabel transaksi sebagai pending
+    const refId = await this.generateOrderId();
+    // const pendingTransaction = await this.db.insert(schema.transaksiPPOB).values({
+
+    // })
+    // 3. Hit transaksi ke api digiflazz
+    // 4. Update status transaksi sebagai sukses atau gagal
+
+    const md5 = this.generateMd5(refId);
     // const dataPpob = await this.findBySkuCode(body.buyerSkuCode)
     // const marginKeuntungan = dataPpob
     const requestDigiflazz = {
       username: 'zitewao6dk0W',
       buyer_sku_code: body.buyerSkuCode,
       customer_no: body.customerNo,
-      ref_id: uuid,
+      ref_id: refId,
       sign: md5,
       testing: true,
     };
-
-    const ppobData = await this.findBySkuCode(body.buyerSkuCode);
-    if (!ppobData?.id) {
-      throw new NotFoundException('');
-    }
 
     console.log('REQUEST', { requestDigiflazz });
     const digiflazData = await this.requestDigiflazz(
@@ -160,18 +186,18 @@ export class DigiflazzService {
       DigiflazzUrl.TRANSACTION,
     );
 
-    // const newTransaction = await this.db.insert(schema.transaksi).values({
-    //   //       refId: digiflazData.refId,
-    //   // customerNo: digiflazData.CustomerNo,
-    //   // price: digiflazData.Price,
-    //   // hargaJual: body.hargaJual,
-    //   // hargaKeuntungan: body.hargaKeuntungan,
-    //   // kuntungan: body.
-    //   // buyerSkuCode
-    //   // status
-    //   // rc
-    //   // tele
-    //   // wa
+    // const newTransaction = await this.db.insert(schema.transaksiPPOB).values({
+    //         refId: digiflazData.refId,
+    //   customerNo: digiflazData.CustomerNo,
+    //   price: digiflazData.Price,
+    //   hargaJual: body.hargaJual,
+    //   hargaKeuntungan: body.hargaKeuntungan,
+    //   kuntungan: body.
+    //   buyerSkuCode
+    //   status
+    //   rc
+    //   tele
+    //   wa
     // });
     return digiflazData;
   }
@@ -184,16 +210,14 @@ export class DigiflazzService {
     const orderId = `${timestamp}${randomSuffix}`;
 
     // Pastikan order_id yang dihasilkan belum digunakan sebelumnya
-    // const existingOrder = await this.prisma.order.findUnique({
-    //   where: {
-    //     order_id: orderId,
-    //   },
-    // });
+    const existingOrder = await this.db.query.transaksiPPOB.findFirst({
+      where: eq(schema.transaksiPPOB.refId, orderId),
+    });
 
-    // if (existingOrder) {
-    //   // Jika order_id sudah ada, panggil fungsi generateOrderId() lagi
-    //   return this.generateOrderId();
-    // }
+    if (existingOrder) {
+      // Jika order_id sudah ada, panggil fungsi generateOrderId() lagi
+      return this.generateOrderId();
+    }
 
     return orderId;
   }
