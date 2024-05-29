@@ -12,6 +12,7 @@ import { ExceptionMiddleware } from './core/middleware/exception.middleware';
 import { ResponseMiddleware } from './core/middleware/response.middleware';
 import { AuthGuard } from './core/guards/auth.guards';
 import { DigiflazzModule } from './digiflazz/digiflazz.module';
+import { TransactionPpobModule } from './transaction-ppob/transaction-ppob.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { DigiflazzModule } from './digiflazz/digiflazz.module';
     ConfigModule.forRoot({ isGlobal: true }),
     ProductsModule,
     DigiflazzModule,
+    TransactionPpobModule,
   ],
   controllers: [AppController],
   providers: [

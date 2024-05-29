@@ -54,12 +54,13 @@ export class AuthService {
     const userExists = await this.db
       .select()
       .from(schema.users)
+      .leftJoin(schema.konter, eq(schema.konter.userId, schema.users.id))
       .where(eq(schema.users.username, username));
 
     if (userExists.length > 0) {
       const isValidPassword = await bcrypt.compare(
         password,
-        userExists[0].password,
+        userExists[0].users.password,
       );
 
       if (!isValidPassword)
@@ -69,12 +70,17 @@ export class AuthService {
 
         return {
           user: {
-            id: user.id,
-            username: user.username,
-            name: user.name,
-            email: user.email,
+            id: user.users.id,
+            username: user.users.username,
+            name: user.users.name,
+            email: user.users.email,
+            konter: user.konters,
           },
-          token: this.generateToken(username, userExists[0]?.id.toString()),
+          token: this.generateToken({
+            username,
+            id: user.users.id,
+            konter_id: user.konters?.id || 0,
+          }),
         };
       }
     } else {
@@ -82,10 +88,16 @@ export class AuthService {
     }
   }
 
-  private generateToken(username: string, id: string) {
-    const token = jwt.sign({ username, id }, process.env.SECRET!, {
+  private generateToken(payload: AUTH_PAYLOAD) {
+    const token = jwt.sign(payload, process.env.SECRET!, {
       expiresIn: 10000000,
     });
     return token;
   }
 }
+
+export type AUTH_PAYLOAD = {
+  username: string;
+  id: number;
+  konter_id: number;
+};

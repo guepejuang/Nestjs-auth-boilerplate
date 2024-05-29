@@ -18,6 +18,8 @@ import {
 import { Digiflazz } from 'schema/schema';
 import { and, eq, or, param } from 'drizzle-orm';
 import { DigiflazzUrl } from './digiflazz.constant';
+import { JwtPayload } from 'jsonwebtoken';
+import { AUTH_PAYLOAD } from 'src/auth/auth.service';
 @Injectable()
 export class DigiflazzService {
   constructor(
@@ -31,7 +33,7 @@ export class DigiflazzService {
       .digest('hex');
   }
 
-  async requestDigiflazz(body: any, url: string) {
+  async requestDigiflazz<T>(body: any, url: string): Promise<T> {
     try {
       const response = await axios.post(url, body);
 
@@ -46,25 +48,57 @@ export class DigiflazzService {
       throw new BadRequestException('Terjadi Kesalahan sistem(D)');
     }
   }
+
+  calculateProfit(nominalPulsa: number): number {
+    let profit = 0;
+    if (nominalPulsa <= 5000) {
+      profit = 200;
+    } else if (nominalPulsa <= 10000) {
+      profit = 300;
+    } else if (nominalPulsa <= 20000) {
+      profit = 400;
+    } else if (nominalPulsa <= 50000) {
+      profit = 500;
+    } else {
+      profit = 1000;
+    }
+
+    return nominalPulsa + profit;
+  }
+
+  async testPPOB() {
+    await this.db.insert(schema.digiflazz).values({
+      productName: 'Xl 10.000',
+      category: 'Pulsa',
+      brand: 'XL',
+      type: 'Umum',
+      price: '9800',
+      priceSell: '10000',
+      buyerSkuCode: 'xld10',
+      buyerProductStatus: true,
+      sellerProductStatus: true,
+      desc: 'Pulsa Xl Rp 100.000',
+    });
+
+    return true;
+  }
   async prabayar() {
     // const md5 = argon2.
 
     const md5 = this.generateMd5('pricelist');
-    const response = await axios.post(
-      'https://api.digiflazz.com/v1/price-list',
-      {
-        cmd: 'prepaid',
-        username: 'zitewao6dk0W',
-        sign: md5,
-        // code: 'TLK5',
-      },
-    );
+    const response = await axios.post(DigiflazzUrl.PRICELIST, {
+      cmd: 'prepaid',
+      username: 'zitewao6dk0W',
+      sign: md5,
+      // code: 'TLK5',
+    });
 
     const digiflazzData: PriceListDigiflazz[] | undefined = ({} =
       response?.data?.data || undefined);
 
     if (digiflazzData) {
       const digiflazzInsert: Digiflazz[] = digiflazzData.map((data) => {
+        const priceSell = this.calculateProfit(data.price);
         return {
           productName: data.product_name,
           category: data.category.toLowerCase(),
@@ -72,6 +106,7 @@ export class DigiflazzService {
           type: data.type.toLocaleLowerCase(),
           desc: data.desc,
           price: data.price + '',
+          priceSell: priceSell + '',
           buyerSkuCode: data.buyer_sku_code,
           buyerProductStatus: data.buyer_product_status,
           sellerProductStatus: data.seller_product_status,
@@ -134,43 +169,35 @@ export class DigiflazzService {
     return data;
   }
 
-  async bayarPrabayar(body: DigiFlazzCreatePrabayar) {
+  async bayarPrabayar(body: DigiFlazzCreatePrabayar, user: AUTH_PAYLOAD) {
     // 1. Cek apakah ada di DB atau tidak
-    let ppobData: Digiflazz | undefined = undefined;
-    if (
-      process.env.NODE_ENV !== 'production' &&
-      body.buyerSkuCode === 'xld10'
-    ) {
-      ppobData = {
-        id: 0,
-        productName: 'Xl 10.000',
-        category: 'Pulsa',
-        brand: 'XL',
-        type: 'Umum',
-        price: '9800',
-        buyerSkuCode: 'xld10',
-        buyerProductStatus: true,
-        sellerProductStatus: true,
-        desc: 'Pulsa Xl Rp 100.000',
-      };
-    } else {
-      ppobData = await this.findBySkuCode(body.buyerSkuCode);
-      if (!ppobData?.id) {
-        throw new NotFoundException('Data Item Tidak ditemukan');
-      }
+    const ppobData = await this.findBySkuCode(body.buyerSkuCode);
+
+    if (!ppobData?.id) {
+      throw new NotFoundException('Data Item Tidak ditemukan');
     }
 
     // 2. Insert ke tabel transaksi sebagai pending
     const refId = await this.generateOrderId();
-    // const pendingTransaction = await this.db.insert(schema.transaksiPPOB).values({
+    const keuntungan = ppobData.priceSell
+      ? +ppobData.priceSell - +ppobData.price
+      : 0;
+    await this.db.insert(schema.transaksiPPOB).values({
+      refId: refId,
+      customerNo: body.customerNo,
+      price: ppobData.price,
+      hargaJual: body.hargaJual,
+      hargaKeuntungan: body.hargaKeuntungan,
+      kuntungan: keuntungan + '',
+      buyerSkuCode: body.buyerSkuCode,
+      status: 'Gagal',
+      digiflazzId: ppobData.id,
+      createdBy: user.id,
+      konterId: user.konter_id || 0,
+    });
 
-    // })
     // 3. Hit transaksi ke api digiflazz
-    // 4. Update status transaksi sebagai sukses atau gagal
-
     const md5 = this.generateMd5(refId);
-    // const dataPpob = await this.findBySkuCode(body.buyerSkuCode)
-    // const marginKeuntungan = dataPpob
     const requestDigiflazz = {
       username: 'zitewao6dk0W',
       buyer_sku_code: body.buyerSkuCode,
@@ -180,26 +207,31 @@ export class DigiflazzService {
       testing: true,
     };
 
-    console.log('REQUEST', { requestDigiflazz });
-    const digiflazData = await this.requestDigiflazz(
+    const digiflazData: schema.TransaksiPPOB = await this.requestDigiflazz(
       requestDigiflazz,
       DigiflazzUrl.TRANSACTION,
     );
 
-    // const newTransaction = await this.db.insert(schema.transaksiPPOB).values({
-    //         refId: digiflazData.refId,
-    //   customerNo: digiflazData.CustomerNo,
-    //   price: digiflazData.Price,
-    //   hargaJual: body.hargaJual,
-    //   hargaKeuntungan: body.hargaKeuntungan,
-    //   kuntungan: body.
-    //   buyerSkuCode
-    //   status
-    //   rc
-    //   tele
-    //   wa
-    // });
-    return digiflazData;
+    // 4. Update status transaksi sebagai sukses atau gagal
+    const updatedDataTransaction = await this.db
+      .update(schema.transaksiPPOB)
+      .set(digiflazData)
+      .where(eq(schema.transaksiPPOB.refId, refId))
+      .returning({
+        id: schema.transaksiPPOB.id,
+        refId: schema.transaksiPPOB.refId,
+      });
+    if (updatedDataTransaction.length > 0) {
+      return {
+        statusDescription: `Berhasil melakukan pembelian ${ppobData.category}`,
+        data: updatedDataTransaction[0],
+      };
+    }
+
+    return {
+      statusCode: 400,
+      statusDescription: `Gagal melakukan pembelian ${ppobData.category}`,
+    };
   }
 
   async generateOrderId(): Promise<string> {
@@ -221,4 +253,6 @@ export class DigiflazzService {
 
     return orderId;
   }
+
+  async listPrice() {}
 }

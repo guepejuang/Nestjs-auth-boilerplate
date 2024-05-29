@@ -42,17 +42,23 @@ export class AuthGuard implements CanActivate {
 
     //verify token
     try {
-      const verified = jwt.verify(token, secret) as jwtPayload;
+      let jwtToken = '';
+      if (token) {
+        jwtToken = token.split(' ')[1];
+      }
+      const verified = jwt.verify(jwtToken, secret) as jwtPayload;
       const userExists = await this.dbDrizzle
         .select()
         .from(schema.users)
         .where(eq(schema.users.username, verified.username));
+
       if (userExists.length) {
         return true;
       }
       return false;
       //find user from db, if not exists return false. confirm role
     } catch (error) {
+      console.log('erro=>', error);
       return false;
     }
     // }
